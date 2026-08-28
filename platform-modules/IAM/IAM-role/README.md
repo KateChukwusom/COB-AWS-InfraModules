@@ -239,3 +239,11 @@ and never get told, exactly what that identity can do internally.
   they're loosened, every role this module creates inherits that change
   automatically on its next apply — powerful, but it means their owner
   carries real responsibility for keeping them correct.
+
+
+## Putting the whole flow together
+
+Someone calls the module with `access_level = "read-write"`, `variables.tf` already confirmed that's a valid value. boundary_policy_arn_map["read-write"] resolves to data.
+aws_iam_policy.boundary_read_write.arn, the real ARN of the pre-existing platform-boundary-read-write policy in AWS.
+That ARN gets wired straight into aws_iam_role.COB_iam_role's permissions_boundary argument.
+The role is created with that boundary attached, permanently.
