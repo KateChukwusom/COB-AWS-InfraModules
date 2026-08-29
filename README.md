@@ -1,6 +1,20 @@
 
 # COB Internal Infrastructure Provisioning Platform
 
+## Table of Contents
+
+- [What is COB?](#what-is-cob)
+- [The Problem COB Solves](#the-problem-cob-solves)
+- [Repository Structure](#repository-structure)
+- [Available Capabilities](#available-capabilities)
+- [Architecture](#architecture)
+- [How to Consume COB](#how-to-consume-cob)
+- [Supported Environments](#supported-environments)
+- [Engineering Standards Enforced by COB](#engineering-standards-enforced-by-cob)
+- [Documentation Index](#documentation-index)
+- [Known Limitations](#known-limitations)
+- [Ownership](#ownership)
+
 ## What is COB?
 
 COB is Beejan Technologies' internal Terraform platform for provisioning
