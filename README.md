@@ -1,54 +1,138 @@
 
-# COB AWS Internal Infrastructure
+# COB Internal Infrastructure Provisioning Platform
 
-COB is Beejan Technologies' internal Terraform module library, a set of opinionated, reusable primitives that teams compose to provision AWS infrastructure consistently, without every team reinventing networking, IAM, and storage decisions from scratch.
+## What is COB?
 
-## Design philosophy
+COB is Beejan Technologies' internal Terraform platform for provisioning
+standardized AWS infrastructure. It provides a set of reusable,
+versioned Terraform modules that engineering teams consume to provision
+compliant, secure-by-default infrastructure without needing to design
+networking, IAM, storage, compute, or database configurations from
+scratch for every project.
 
-Every module in this library is built against four questions, applied deliberately rather than left to default behavior:
+COB is built and maintained by the Platform Engineering team.
 
-- **Encapsulation** — what does the consumer actually need to decide, and what should the module own outright? A module is only worth naming separately from its underlying AWS resource if it adds real abstraction on top of it.
+## The Problem COB Solves
 
-- **Privilege** — for any module touching access or security posture, the strongest guardrail is usually not exposing the dangerous knob at all, rather than trying to validate every possible misuse of it.
+As Beejan Technologies grew, infrastructure provisioning became a
+bottleneck: every team's request went through Platform Engineering
+manually, and different teams ended up with inconsistent, sometimes
+insecure configurations like inconsistent S3 versioning, inconsistent IAM
+policies, inconsistent tagging, and no clear ownership of network
+design decisions.
 
-- **Volatility** — inputs that change often per consumer stay flexible; decisions that should never vary (a secure bucket staying private, a role never getting `AdministratorAccess`) get hardcoded, not merely defaulted.
+COB replaces "ask Platform Engineering to build it for you" with "use
+the platform's standard modules yourself"; while keeping Platform
+Engineering in control of the underlying security and architectural
+standards.
 
-- **Ownership** — each primitive has a clear boundary of responsibility. When two primitives could plausibly own the same concern (e.g. bucket access — `secure-data-bucket` vs. `iam-role`), one is picked deliberately and the other documents the exception path.
+## Repository Structure
 
-Every module's own README documents its specific answers to these four questions — what it exposes, what it hardcodes, and why.
-
-## Primitives
-
-| Primitive | Purpose |
-| --- | --- |
-| `networking` | VPC, public/private subnets across AZs, optional NAT egress. |
-| `iam-role` | IAM roles with trust policies, managed/inline permission policies, permission boundaries. |
-| `secure-data-bucket` | Private, encrypted S3 storage with lifecycle management. |
-| `compute` | EC2 / ECS workload provisioning, consuming `networking` + `iam-role`. |
-| `rds` | Managed relational database, consuming `networking` + `iam-role`. |
-| `data-platform` | Composition module wiring the above primitives into complete, opinionated stacks per data classification. |
-
-Each module directory contains its own `variables.tf`, `main.tf`, `outputs.tf`, and `README.md`.
-
-## Using a Module
-
-Reference the module by relative path and supply its required inputs — see each module's own README for the full input/output reference and composition examples:
-
-```hcl
-module "networking" {
-  source = "../../modules/networking"
-
-  team        = "platform"
-  environment = "prod"
-}
+```text
+cob-platform/
+├── modules/
+│ ├── networking/
+│ ├── identity/
+│ ├── storage/
+│ ├── compute-ec2/
+│ ├── compute-ecs/
+│ ├── database/
+│ └── data-platform/
+├── environments/ # Platform Engineering's own infrastructure 
+├── examples/ # Runnable, illustrative usage of the modules
+├── docs/ # Architecture, design reasoning, security standards
 ```
 
-## Naming and tagging convention
+### BREAKDOWN
 
-Every primitive follows the same identity convention: `team` and `environment` are required inputs on every module, validated the same way, and every resource gets `Team`, `Environment`, and `ManagedBy = COB` tags automatically, not consumer-extensible, so every resource in the platform is queryable consistently regardless of which team created it.
+- **`modules/`** is the product each subfolder is an independently
+  versioned, reusable capability. This is what other teams consume.
 
-## Status
+- **`environments/`** contains only infrastructure that Platform
+  Engineering itself operates (e.g., shared platform resources). It
+  does not contain other teams' deployed infrastructure each
+  consuming team maintains their own environment configuration in
+  their own repository, referencing COB modules by version.
 
-All six primitives are built and available for use.
+- **`examples/`** contains standalone, runnable demonstrations of how
+  to consume COB's modules, using minimal/illustrative values. These
+  are for learning, not production use.
 
-Kindly reach out to the platform team at verge of more clarification.
+## Available Capabilities
+
+| Module | Purpose |
+| -------- | --------- |
+| `networking` | VPC, subnets, routing, NAT gateways, and baseline network security posture. |
+| `identity` | Reusable IAM role/policy patterns with least-privilege guardrails. |
+| `storage` | Standardized, secure-by-default S3 object storage (encryption, versioning, lifecycle). |
+| `compute-ec2` | Autoscaling EC2 workloads with composed networking and IAM. |
+| `compute-ecs` | ECS services with composed networking and IAM. |
+| `database` | Managed RDS databases with secure networking and backup defaults. |
+| `data-platform` | Glue Data Catalog and Athena integration for analytics over S3 data. |
+
+See each module's own `README.md` for detailed inputs, outputs, and
+design reasoning.
+
+## How to Consume COB
+
+COB modules are consumed by referencing them from your own team's
+Terraform configuration, pinned to a specific released version never
+an unpinned branch.
+
+Your own team's repository should maintain its own `environments/dev`
+and `environments/prod` directories, each with their own Terraform
+state. COB provides the reusable modules, not your team's deployed
+infrastructure.
+
+See [`docs/onboarding.md`](docs/onboarding.md) for a
+full walkthrough.
+
+## Supported Environments
+
+COB modules are designed to be called independently per environment,
+with no shared resources between calls. At minimum, COB supports:
+
+- `dev`
+- `prod`
+
+Each environment should have its own Terraform state, provisioned by
+calling the same module(s) with environment-specific input values.
+
+## Engineering Standards Enforced by COB
+
+Rather than relying on every team remembering security best practices,
+COB bakes the following into its modules by default:
+
+- Encryption at rest (S3, RDS)
+- Least-privilege IAM patterns with permission boundaries
+- Secure-by-default S3 configuration (public access blocked, TLS enforced)
+- Network isolation between public and private tiers
+- Consistent resource tagging and naming conventions
+- Environment separation (no shared state or resources across environments)
+
+See [`docs/security-standards.md`](docs/security-standards.md) for the
+full list and reasoning per module.
+
+## Versioning
+
+COB modules are versioned using Git tags (e.g., `v1.0.0`). Consuming
+teams pin to a specific version and upgrade deliberately — module
+updates never propagate automatically. See `CHANGELOG.md` for release
+history.
+
+## Documentation Index
+
+- [`docs/architecture.md`](docs/architecture.md) — how modules compose together
+- [`docs/module-boundaries.md`](docs/module-boundaries.md) — why modules are scoped the way they are (encapsulation, privilege, volatility reasoning)
+- [`docs/security-standards.md`](docs/security-standards.md) — security defaults enforced across the platform
+- [`docs/onboarding.md`](docs/onboarding.md) — how a new team starts consuming COB
+
+## Known Limitations
+
+- No support for multi-region deployments in this version.
+- No VPC peering or Transit Gateway support yet.
+
+## Ownership
+
+Maintained by the Platform Engineering team at Beejan Technologies.
+Contact Platform Engineering directly.
