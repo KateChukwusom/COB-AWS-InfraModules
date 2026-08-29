@@ -53,7 +53,7 @@ one shared ceiling by reading it, never creating it.
 ## What you decide
 
 | Variable | Type | Why this type |
-|---|---|---|
+| --- | --- | --- |
 | `team` | free-form (pattern-constrained) | the set of valid teams grows over time — can't be pre-approved as an enum |
 | `app_name` | free-form (pattern-constrained) | same reasoning as `team` |
 | `environment` | enum: `dev` / `staging` / `prod` | fixed, small, known set that won't grow next week |
@@ -213,7 +213,7 @@ you didn't anticipate? Both examples pass.
 ## Outputs
 
 | Output | Use |
-|---|---|
+| --- | --- |
 | `role_arn` | pass into `role`, `execution_role_arn`, or an instance profile |
 | `role_name` | debugging, logging, or CloudWatch alarm references |
 
@@ -240,10 +240,13 @@ and never get told, exactly what that identity can do internally.
   automatically on its next apply — powerful, but it means their owner
   carries real responsibility for keeping them correct.
 
-
-## Putting the whole flow together
+### Putting the whole flow together
 
 Someone calls the module with `access_level = "read-write"`, `variables.tf` already confirmed that's a valid value. boundary_policy_arn_map["read-write"] resolves to data.
 aws_iam_policy.boundary_read_write.arn, the real ARN of the pre-existing platform-boundary-read-write policy in AWS.
 That ARN gets wired straight into aws_iam_role.COB_iam_role's permissions_boundary argument.
 The role is created with that boundary attached, permanently.
+
+## Instance Profile
+
+An EC2 instance can't assume an IAM role directly the way a Lambda function can — EC2 needs an instance profile as an intermediary wrapper around the role, which then gets attached to the EC2 instance. Conceptually, it's a thin AWS-mandated wrapper with almost no logic of its own — mostly a historical artifact of how EC2's IAM integration was originally built, years before other services adopted role-assumption directly. count is used again here the same way as Part 1 — create it only if create_instance_profile is true, since not every role is for an EC2 instance.

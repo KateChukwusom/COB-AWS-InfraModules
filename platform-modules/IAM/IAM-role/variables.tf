@@ -74,3 +74,11 @@ variable "resource_service" {
   }
 }
 
+#An ec2 instance cannot assume an IAM role directly, it needs an instance profile around the role,
+#which then get attached to the EC2 instance
+
+variable "create_instance_profile" {
+  type = bool
+  description = "It checks whether an instance profile needs to be created(For EC2 cases only)"
+  default = false
+}

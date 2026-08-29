@@ -15,7 +15,7 @@ locals {
   tags = {
     Team        = var.team
     Environment = var.environment
-    ManagedBy   = "terraform"
+    ManagedBy   = "COB"
   }
 
   actions_lookup = {
@@ -89,4 +89,11 @@ resource "aws_iam_role_policy" "COB_role_policy" {
   name   = "${local.role_name}-policy"
   role   = aws_iam_role.this.id
   policy = data.aws_iam_policy_document.permissions.json
+}
+
+resource "aws_iam_instance_profile" "this" {
+  count = var.create_instance_profile ? 1 : 0
+  name = local.role_name
+  role = aws_iam_role.this.name
+  tags = local.tags
 }
