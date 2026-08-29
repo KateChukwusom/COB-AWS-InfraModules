@@ -4,10 +4,9 @@ This guide walks a new engineering team through consuming COB's
 Terraform modules for the first time from first access request to a
 working `terraform apply`.
 
-If you're looking for *why* COB is designed the way it is, see
-[`architecture.md`](architecture.md) and
+If you're looking for why COB is designed the way it is, see
 [`module-boundaries.md`](module-boundaries.md) instead. This document
-is purely about *how* to start using it.
+is purely about how to start using it.
 
 ---
 
@@ -87,7 +86,6 @@ Check each module's own `README.md` for its required inputs, outputs, and any co
 Most real infrastructure requires more than one COB module working
 together. Downstream modules typically consume the outputs of
 upstream ones directly, you rarely need to hardcode IDs by hand:
-
 
 See [`examples/`](../examples/) in the COB repository for full,
 runnable demonstrations of common module combinations.

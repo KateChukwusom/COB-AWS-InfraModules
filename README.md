@@ -73,6 +73,10 @@ cob-platform/
 See each module's own `README.md` for detailed inputs, outputs, and
 design reasoning.
 
+## Architecture
+
+![COB module composition diagram](./docs/images/COB-INFRA-Architecture.png)
+
 ## How to Consume COB
 
 COB modules are consumed by referencing them from your own team's
@@ -110,21 +114,9 @@ COB bakes the following into its modules by default:
 - Consistent resource tagging and naming conventions
 - Environment separation (no shared state or resources across environments)
 
-See [`docs/security-standards.md`](docs/security-standards.md) for the
-full list and reasoning per module.
-
-## Versioning
-
-COB modules are versioned using Git tags (e.g., `v1.0.0`). Consuming
-teams pin to a specific version and upgrade deliberately — module
-updates never propagate automatically. See `CHANGELOG.md` for release
-history.
-
 ## Documentation Index
 
-- [`docs/architecture.md`](docs/architecture.md) — how modules compose together
 - [`docs/module-boundaries.md`](docs/module-boundaries.md) — why modules are scoped the way they are (encapsulation, privilege, volatility reasoning)
-- [`docs/security-standards.md`](docs/security-standards.md) — security defaults enforced across the platform
 - [`docs/onboarding.md`](docs/onboarding.md) — how a new team starts consuming COB
 
 ## Known Limitations

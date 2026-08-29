@@ -34,4 +34,3 @@ with no additional guardrails.
 Every module's `README.md` documents its own Encapsulation, Volatility,
 and Privilege classification, along with the reasoning behind its
 specific inputs and outputs.
-
