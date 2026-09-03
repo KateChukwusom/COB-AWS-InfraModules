@@ -46,14 +46,21 @@ variable "description" {
 }
 
 # ------------------------------------------------------------------
-# Versioning defaults ON. Turning it off is rarely correct for a
-# "secure data" primitive — versioning is what protects against
-# accidental overwrites/deletes, not just an optional nicety.
+# Consumers describe their DATA, not their encryption implementation.
+# A team knows whether what they're storing is sensitive; they
+# shouldn't need to know what SSE-KMS is, or go create a key
+# themselves before they can use this module. The module derives the
+# actual encryption mechanism from this single business-level input.
 # ------------------------------------------------------------------
-variable "versioning_enabled" {
-  type        = bool
-  default     = true
-  description = "Whether to enable object versioning on this bucket."
+variable "sensitivity" {
+  type        = string
+  default     = "standard"
+  description = "Data sensitivity level for this bucket. 'high' provisions a dedicated, rotated KMS key with an independent audit trail. 'standard' uses AWS-managed SSE-S3 encryption at no additional cost."
+
+  validation {
+    condition     = contains(["standard", "high"], var.sensitivity)
+    error_message = "sensitivity must be 'standard' or 'high'."
+  }
 }
 
 # ------------------------------------------------------------------
@@ -68,23 +75,17 @@ variable "kms_key_arn" {
   description = "Optional customer-managed KMS key ARN. If not provided, defaults to AWS-managed SSE-S3 encryption."
 }
 
-# ------------------------------------------------------------------
-# Structural type carrying only what's actually needed per rule.
-# optional() fields keep the caller from having to specify every
-# field for every rule — e.g. a rule with just an expiration
-# doesn't need a transition block at all.
-# ------------------------------------------------------------------
+# versioning_enabled has been removed entirely - versioning is
+# unconditional on every bucket this module creates. See main.tf.
+
 variable "lifecycle_rules" {
   type = list(object({
-    id                        = string
-    enabled                   = optional(bool, true)
-    prefix                    = optional(string, "")
-    expiration_days           = optional(number)
-    transition_days           = optional(number)
-    transition_storage_class  = optional(string)
+    id              = string
+    prefix          = optional(string, "")
+    expiration_days = number
   }))
   default     = []
-  description = "Lifecycle rules for object expiration and storage class transitions."
+  description = "Optional early-expiration rules for specific prefixes, in addition to the baseline transition/cleanup schedule this module always applies (see README)."
 }
 
 # ------------------------------------------------------------------

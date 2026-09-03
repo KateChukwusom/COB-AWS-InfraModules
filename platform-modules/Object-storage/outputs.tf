@@ -11,10 +11,11 @@ output "bucket_domain_name" {
 }
 
 # ------------------------------------------------------------------
-# Surfaced so iam-role's permission_policy_arns/inline_policies can
-# scope grants (e.g. "GetObject only on THIS bucket") without the
-# caller needing to reconstruct the ARN by hand.
+# Points at the key this module created (or null, for standard-
+# sensitivity buckets using AWS-managed encryption). Downstream
+# iam-role policies use this to grant kms:Decrypt where a customer-
+# managed key is actually in play.
 # ------------------------------------------------------------------
 output "kms_key_arn" {
-  value = var.kms_key_arn
+  value = local.kms_key_arn
 }

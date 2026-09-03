@@ -1,12 +1,12 @@
 /*Because an s3 bucket must be globally unique, A deliberate, readable name alone 
-cannot guarantee that uniqueness so The random suffix is
-# therefore not optional here the way it was treated as a fallback
-# in iam-role — it's structurally required every time.
+cannot guarantee that uniqueness so the random suffix is there to make it unique
  */
 resource "random_id" "suffix" {
   byte_length = 4
 }
 
+/* This local block exist to make the resource to be created globally unique 
+easily identified by name and tags */
 locals {
   bucket_name = "cob-${var.team}-${var.environment}-${var.purpose}-${random_id.suffix.hex}"
 
@@ -18,20 +18,23 @@ locals {
   })
 }
 
-resource "aws_s3_bucket" "this" {
+resource "aws_s3_bucket" "COB_s3_bucket" {
   bucket = local.bucket_name
 
   tags = merge(local.tags, { Name = local.bucket_name })
 }
 
 # ------------------------------------------------------------------
-# Versioning is caller-toggleable, but defaults on (see variables.tf).
+# Not caller-configurable. Versioning protects against overwrite and
+# delete mistakes - this module doesn't offer a way to turn that
+# protection off. Pairs unconditionally with the lifecycle baseline
+# below, which is what keeps versioning's storage cost bounded.
 # ------------------------------------------------------------------
 resource "aws_s3_bucket_versioning" "this" {
   bucket = aws_s3_bucket.this.id
 
   versioning_configuration {
-    status = var.versioning_enabled ? "Enabled" : "Suspended"
+    status = "Enabled"
   }
 }
 
@@ -41,6 +44,7 @@ resource "aws_s3_bucket_versioning" "this" {
 # with the caller's own key. There is no code path that produces
 # an unencrypted bucket.
 # ------------------------------------------------------------------
+/* */
 resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
   bucket = aws_s3_bucket.this.id
 
@@ -61,6 +65,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
 # separate, explicitly-named module (e.g. public-website-bucket),
 # not as a quiet toggle here.
 # ------------------------------------------------------------------
+/* */
 resource "aws_s3_bucket_public_access_block" "this" {
   bucket = aws_s3_bucket.this.id
 
@@ -71,49 +76,135 @@ resource "aws_s3_bucket_public_access_block" "this" {
 }
 
 # ------------------------------------------------------------------
-# count, not for_each: this is an on/off decision (are there ANY
-# lifecycle rules at all), not a loop over distinct named items in
-# its own right — the actual looping happens inside, via the
-# dynamic "rule" block below.
+# The baseline rule always exists and is not caller-configurable -
+# it encodes COB's default retention/cost policy rather than leaving
+# every team to invent their own transition schedule from scratch.
+# Callers may ADD prefix-specific early-expiration rules via
+# var.lifecycle_rules, but cannot alter or remove this baseline.
 # ------------------------------------------------------------------
 resource "aws_s3_bucket_lifecycle_configuration" "this" {
-  count  = length(var.lifecycle_rules) > 0 ? 1 : 0
+  depends_on = [aws_s3_bucket_versioning.this]
   bucket = aws_s3_bucket.this.id
+
+  rule {
+    id     = "cob-default-lifecycle"
+    status = "Enabled"
+
+    filter {
+      prefix = ""
+    }
+
+    transition {
+      days          = 60
+      storage_class = "STANDARD_IA"
+    }
+
+    transition {
+      days          = 180
+      storage_class = "GLACIER"
+    }
+
+    noncurrent_version_transition {
+      noncurrent_days = 30
+      storage_class   = "GLACIER"
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 90
+    }
+
+  }
 
   dynamic "rule" {
     for_each = var.lifecycle_rules
     content {
       id     = rule.value.id
-      status = rule.value.enabled ? "Enabled" : "Disabled"
+      status = "Enabled"
 
       filter {
         prefix = rule.value.prefix
       }
 
-      dynamic "expiration" {
-        for_each = rule.value.expiration_days != null ? [rule.value.expiration_days] : []
-        content {
-          days = expiration.value
-        }
-      }
-
-      dynamic "transition" {
-        for_each = rule.value.transition_days != null ? [rule.value.transition_days] : []
-        content {
-          days          = transition.value
-          storage_class = rule.value.transition_storage_class
-        }
+      expiration {
+        days = rule.value.expiration_days
       }
     }
   }
 }
+# ------------------------------------------------------------------
+# Only created when sensitivity = "high". The module owns this key's
+# entire lifecycle - creation, rotation, and safe deletion handling -
+# rather than accepting a pre-existing key ARN from the caller. A
+# consumer never needs to have touched KMS directly to use this
+# module correctly.
+# ------------------------------------------------------------------
+resource "aws_kms_key" "bucket_key" {
+  count = var.sensitivity == "high" ? 1 : 0
 
+  description = "KMS key for ${local.bucket_name} (high-sensitivity bucket)"
+
+  # AWS never deletes a KMS key immediately - deleting a key that's
+  # still protecting live data makes that data permanently
+  # unrecoverable, with no undo. 30 days is the maximum waiting
+  # period AWS allows, and the right default here: if this data was
+  # sensitive enough to warrant a dedicated key, it's sensitive
+  # enough to want the longest possible safety window before a key
+  # deletion becomes irreversible.
+  deletion_window_in_days = 30
+
+  # Automatic annual rotation - a real security decision the module
+  # makes on the consumer's behalf, rather than something they'd
+  # need to remember to configure themselves.
+  enable_key_rotation = true
+
+  tags = local.tags
+}
+
+# ------------------------------------------------------------------
+# A KMS key's real identifier is an opaque UUID - not something a
+# human can recognize in the console. This alias exists purely for
+# discoverability: anyone browsing KMS sees a readable name tied to
+# the bucket it protects, instead of a meaningless key ID.
+# ------------------------------------------------------------------
+resource "aws_kms_alias" "bucket_key" {
+  count = var.sensitivity == "high" ? 1 : 0
+
+  name          = "alias/${local.bucket_name}-key"
+  target_key_id = aws_kms_key.bucket_key[0].key_id
+}
+
+locals {
+  # Computed once, referenced by name below, rather than repeating
+  # the same sensitivity check inline wherever it's needed. Makes
+  # "under what condition does this bucket use a customer-managed
+  # key" answerable by reading one clearly-named value.
+  sse_algorithm = var.sensitivity == "high" ? "aws:kms" : "AES256"
+  kms_key_arn   = var.sensitivity == "high" ? aws_kms_key.bucket_key[0].arn : null
+}
+
+# ------------------------------------------------------------------
+# Encryption itself is never optional - this resource always exists,
+# on every bucket. Only WHICH key performs the encryption varies,
+# driven entirely by the sensitivity-derived locals above.
+# ------------------------------------------------------------------
+resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
+  bucket = aws_s3_bucket.this.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = local.sse_algorithm
+      kms_master_key_id = local.kms_key_arn
+    }
+    bucket_key_enabled = true
+  }
+}
 # ------------------------------------------------------------------
 # Only generated if the caller actually granted external principals.
 # Uses the same aws_iam_policy_document data source pattern as
 # iam-role's trust policy — structural validation before AWS ever
 # sees raw JSON, same reasoning as before.
 # ------------------------------------------------------------------
+/* */
 data "aws_iam_policy_document" "bucket_policy" {
   count = length(var.allowed_principal_arns) > 0 ? 1 : 0
 
@@ -133,6 +224,7 @@ data "aws_iam_policy_document" "bucket_policy" {
   }
 }
 
+/* */
 resource "aws_s3_bucket_policy" "this" {
   count  = length(var.allowed_principal_arns) > 0 ? 1 : 0
   bucket = aws_s3_bucket.this.id
