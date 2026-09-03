@@ -89,7 +89,7 @@ design reasoning.
 
 ## Architecture
 
-![COB module composition diagram](./docs/images/COB-INFRA-Architecture.png)
+![COB module composition diagram](./docs/images/COB_INFRA.png)
 
 ## How to Consume COB
 
