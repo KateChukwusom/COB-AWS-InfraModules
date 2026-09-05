@@ -1,0 +1,3 @@
+# Module overview
+
+data-platform is the composition module the brief specifically calls for: exposing data already sitting in a secure-data-bucket to analytics users, via AWS Glue Data Catalog and Athena. Unlike the five primitives, this module doesn't create raw AWS resources from scratch — it wires together a Glue database, a crawler (with its own narrowly-scoped IAM role, composed from iam-role), and an Athena workgroup with cost and encryption guardrails baked in. It deliberately does not own the source data bucket — that's secure-data-bucket's job — it only consumes that bucket's ARN and KMS key to grant the crawler exactly enough access to read and catalog what's there, nothing more.
