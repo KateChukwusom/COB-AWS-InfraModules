@@ -13,16 +13,10 @@ locals {
     ManagedBy   = "COB"
   }
 
-  # ------------------------------------------------------------------
+  
   # Hardcoded on purpose: callers never supply CIDR notation. Every
-  # VPC this module creates uses the same /16 today. NOTE: this means
-  # two VPCs from this module WILL have overlapping CIDRs — fine
-  # until VPC peering or a Transit Gateway is needed, at which point
-  # this needs a real per-VPC allocation strategy (e.g. an index
-  # input feeding cidrsubnet()). Deferred deliberately, not an
-  # oversight.
-  # ------------------------------------------------------------------
-  /* */
+  # VPC this module creates uses the same /16 today.
+ 
   base_cidr = "10.0.0.0/16"
 
   azs = slice(data.aws_availability_zones.available.names, 0, var.az_count)
@@ -51,12 +45,10 @@ resource "aws_internet_gateway" "this" {
   tags = merge(local.tags, { Name = "${local.vpc_name}-igw" })
 }
 
-# ------------------------------------------------------------------
-# for_each keyed by AZ name (not count) — same reasoning as the
-# iam-role policy attachments: if az_count ever changes, or AZ
+
+# for_each keyed by AZ name, if az_count ever changes, or AZ
 # ordering shifts, each subnet stays tied to its actual AZ identity
 # instead of a positional index that could get reassigned.
-# ------------------------------------------------------------------
 /* */
 resource "aws_subnet" "public" {
   for_each = { for idx, az in local.azs : az => idx }
@@ -86,10 +78,8 @@ resource "aws_subnet" "private" {
   })
 }
 
-# ------------------------------------------------------------------
 # count, not for_each, is correct here: this is an on/off switch
 # (0 or 1), not a loop over a collection of distinct items.
-# ------------------------------------------------------------------
 /* */
 resource "aws_eip" "nat" {
   count  = var.enable_nat_gateway ? 1 : 0
@@ -103,6 +93,7 @@ resource "aws_nat_gateway" "this" {
   count = var.enable_nat_gateway ? 1 : 0
 
   allocation_id = aws_eip.nat[0].id
+  
   # A single NAT gateway in the first public subnet is sufficient for
   # most workloads and keeps cost down. One NAT per AZ is a valid
   # upgrade later if private-subnet resilience against an AZ outage

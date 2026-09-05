@@ -8,24 +8,23 @@ locals {
   })
 }
 
-# ------------------------------------------------------------------
+
 # AMI is resolved internally via AWS's own published SSM parameter,
 # not passed in by the caller. This guarantees every instance this
 # module creates boots from a current, AWS-maintained Amazon Linux
 # image - no stale hardcoded AMI ID drifting out of date across
 # regions, and no caller needing to know how to find one.
-# ------------------------------------------------------------------
+
 data "aws_ssm_parameter" "al2023_ami" {
   name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
   
 }
 
 
-# ------------------------------------------------------------------
-# Owned here, not by networking - access rules live next to the
-# resource they protect, per the ownership boundary decided earlier.
-# ------------------------------------------------------------------
-resource "aws_security_group" "this" {
+
+# Security group that determines who can access
+
+resource "aws_security_group" "COB-sg" {
   name        = "${local.name}-sg"
   description = "Security group for ${local.name}"
   vpc_id      = var.vpc_id
@@ -53,7 +52,7 @@ resource "aws_security_group" "this" {
   tags = merge(local.tags, { Name = "${local.name}-sg" })
 }
 
-resource "aws_launch_template" "this" {
+resource "aws_launch_template" "COB-launch_template" {
   name_prefix   = "${local.name}-"
   image_id      = data.aws_ssm_parameter.al2023_ami.value
   instance_type = var.instance_type
@@ -64,7 +63,7 @@ resource "aws_launch_template" "this" {
     name = var.instance_profile_name
   }
 
-  vpc_security_group_ids = [aws_security_group.this.id]
+  vpc_security_group_ids = [aws_security_group.COB-sg.id]
 
   tag_specifications {
     resource_type = "instance"
@@ -76,7 +75,7 @@ resource "aws_launch_template" "this" {
   }
 }
 
-resource "aws_autoscaling_group" "this" {
+resource "aws_autoscaling_group" "COB-asg" {
   name                = "${local.name}-asg"
   vpc_zone_identifier = var.subnet_ids
   min_size            = var.min_size
@@ -84,12 +83,11 @@ resource "aws_autoscaling_group" "this" {
   desired_capacity    = var.desired_capacity
 
   launch_template {
-    id      = aws_launch_template.this.id
+    id      = aws_launch_template.COB-launch_template.id
     version = "$Latest"
   }
 
-  # ASG requires tags in a different shape than a plain map - each
-  # tag needs its own block with propagate_at_launch set.
+  # ASG requires tags in a different shape than a plain map 
   dynamic "tag" {
     for_each = merge(local.tags, { Name = local.name })
     content {

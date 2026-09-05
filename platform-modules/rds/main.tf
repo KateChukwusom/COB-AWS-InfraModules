@@ -11,23 +11,14 @@ locals {
   skip_final_snapshot  = var.environment != "prod"
 }
 
-# ------------------------------------------------------------------
-# random_password and the manual aws_secretsmanager_secret /
-# aws_secretsmanager_secret_version resources have been removed
-# entirely. AWS's native manage_master_user_password feature (used
-# on aws_db_instance below) replaces all three - RDS generates the
-# password, stores it in Secrets Manager, and owns its entire
-# lifecycle internally, including rotation, which the manual
-# approach had no mechanism for at all.
-# ------------------------------------------------------------------
 
-resource "aws_db_subnet_group" "this" {
+resource "aws_db_subnet_group" "rds-subnet" {
   name       = "${local.name}-subnet-group"
   subnet_ids = var.subnet_ids
   tags       = local.tags
 }
 
-resource "aws_security_group" "this" {
+resource "aws_security_group" "rds-sg" {
   name        = "${local.name}-sg"
   description = "Security group for ${local.name}"
   vpc_id      = var.vpc_id
@@ -56,7 +47,7 @@ resource "aws_security_group" "this" {
   tags = merge(local.tags, { Name = "${local.name}-sg" })
 }
 
-resource "aws_db_instance" "this" {
+resource "aws_db_instance" "rds_db_instance" {
   identifier = local.name
 
   # Hardcoded - this module provisions PostgreSQL only.
@@ -68,19 +59,16 @@ resource "aws_db_instance" "this" {
   storage_encrypted = true
 
   # Only the empty database itself is created here. No schema,
-  # tables, or roles are created by this module - see README's
-  # "Known limitations" for the reasoning and the planned path for
-  # schema management.
+  # tables, or roles are created by this module.
   db_name  = var.database_name
   username = var.master_username
 
   # AWS generates and owns the master password entirely. No
-  # password argument exists on this resource - there is nothing
-  # for a caller to supply, see, or accidentally hardcode.
+  # password argument exists on this resource 
   manage_master_user_password = true
 
-  db_subnet_group_name   = aws_db_subnet_group.this.name
-  vpc_security_group_ids = [aws_security_group.this.id]
+  db_subnet_group_name   = aws_db_subnet_group.rds-subnet.name
+  vpc_security_group_ids = [aws_security_group.rds-sg.id]
 
   publicly_accessible = false
 

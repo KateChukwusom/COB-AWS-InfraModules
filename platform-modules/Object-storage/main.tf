@@ -24,12 +24,11 @@ resource "aws_s3_bucket" "COB_s3_bucket" {
   tags = merge(local.tags, { Name = local.bucket_name })
 }
 
-# ------------------------------------------------------------------
-# Not caller-configurable. Versioning protects against overwrite and
+# Versioning protects against overwrite and
 # delete mistakes - this module doesn't offer a way to turn that
 # protection off. Pairs unconditionally with the lifecycle baseline
 # below, which is what keeps versioning's storage cost bounded.
-# ------------------------------------------------------------------
+
 resource "aws_s3_bucket_versioning" "this" {
   bucket = aws_s3_bucket.this.id
 
@@ -38,12 +37,10 @@ resource "aws_s3_bucket_versioning" "this" {
   }
 }
 
-# ------------------------------------------------------------------
-# Encryption is NEVER optional — only which key is used varies.
+# Encryption is NEVER optional, only which key is used varies.
 # No kms_key_arn -> AWS-managed SSE-S3. A kms_key_arn -> SSE-KMS
 # with the caller's own key. There is no code path that produces
 # an unencrypted bucket.
-# ------------------------------------------------------------------
 /* */
 resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
   bucket = aws_s3_bucket.this.id
@@ -57,14 +54,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
   }
 }
 
-# ------------------------------------------------------------------
-# Hardcoded, all four settings, no exceptions, no variable exposing
-# this to callers. A "secure data bucket" that lets someone flip
-# public access back on defeats the module's entire purpose. If a
-# genuine public-hosting use case ever arises, it belongs in a
-# separate, explicitly-named module (e.g. public-website-bucket),
-# not as a quiet toggle here.
-# ------------------------------------------------------------------
+# All settings here are Hardcoded to enforce standards 
 /* */
 resource "aws_s3_bucket_public_access_block" "this" {
   bucket = aws_s3_bucket.this.id
@@ -75,13 +65,13 @@ resource "aws_s3_bucket_public_access_block" "this" {
   restrict_public_buckets = true
 }
 
-# ------------------------------------------------------------------
-# The baseline rule always exists and is not caller-configurable -
-# it encodes COB's default retention/cost policy rather than leaving
+
+
+
+# This encodes COB's default retention/cost policy rather than leaving
 # every team to invent their own transition schedule from scratch.
 # Callers may ADD prefix-specific early-expiration rules via
 # var.lifecycle_rules, but cannot alter or remove this baseline.
-# ------------------------------------------------------------------
 resource "aws_s3_bucket_lifecycle_configuration" "this" {
   depends_on = [aws_s3_bucket_versioning.this]
   bucket = aws_s3_bucket.this.id
@@ -131,41 +121,26 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
     }
   }
 }
-# ------------------------------------------------------------------
+
 # Only created when sensitivity = "high". The module owns this key's
 # entire lifecycle - creation, rotation, and safe deletion handling -
 # rather than accepting a pre-existing key ARN from the caller. A
 # consumer never needs to have touched KMS directly to use this
 # module correctly.
-# ------------------------------------------------------------------
 resource "aws_kms_key" "bucket_key" {
   count = var.sensitivity == "high" ? 1 : 0
 
   description = "KMS key for ${local.bucket_name} (high-sensitivity bucket)"
 
-  # AWS never deletes a KMS key immediately - deleting a key that's
-  # still protecting live data makes that data permanently
-  # unrecoverable, with no undo. 30 days is the maximum waiting
-  # period AWS allows, and the right default here: if this data was
-  # sensitive enough to warrant a dedicated key, it's sensitive
-  # enough to want the longest possible safety window before a key
-  # deletion becomes irreversible.
   deletion_window_in_days = 30
-
-  # Automatic annual rotation - a real security decision the module
-  # makes on the consumer's behalf, rather than something they'd
-  # need to remember to configure themselves.
   enable_key_rotation = true
 
   tags = local.tags
 }
-
-# ------------------------------------------------------------------
-# A KMS key's real identifier is an opaque UUID - not something a
+# A KMS key's real identifier is an opaque UUID, it is not something a
 # human can recognize in the console. This alias exists purely for
 # discoverability: anyone browsing KMS sees a readable name tied to
-# the bucket it protects, instead of a meaningless key ID.
-# ------------------------------------------------------------------
+# the bucket it protects.
 resource "aws_kms_alias" "bucket_key" {
   count = var.sensitivity == "high" ? 1 : 0
 
@@ -174,19 +149,13 @@ resource "aws_kms_alias" "bucket_key" {
 }
 
 locals {
-  # Computed once, referenced by name below, rather than repeating
-  # the same sensitivity check inline wherever it's needed. Makes
-  # "under what condition does this bucket use a customer-managed
-  # key" answerable by reading one clearly-named value.
+  
   sse_algorithm = var.sensitivity == "high" ? "aws:kms" : "AES256"
   kms_key_arn   = var.sensitivity == "high" ? aws_kms_key.bucket_key[0].arn : null
 }
 
-# ------------------------------------------------------------------
-# Encryption itself is never optional - this resource always exists,
-# on every bucket. Only WHICH key performs the encryption varies,
-# driven entirely by the sensitivity-derived locals above.
-# ------------------------------------------------------------------
+# Encryption itself is never optional, this resource always exists,
+# on every bucket.
 resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
   bucket = aws_s3_bucket.this.id
 
@@ -198,12 +167,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
     bucket_key_enabled = true
   }
 }
-# ------------------------------------------------------------------
-# Only generated if the caller actually granted external principals.
-# Uses the same aws_iam_policy_document data source pattern as
-# iam-role's trust policy — structural validation before AWS ever
-# sees raw JSON, same reasoning as before.
-# ------------------------------------------------------------------
+# This should be Only generated if the caller actually granted external principals.
+
 /* */
 data "aws_iam_policy_document" "bucket_policy" {
   count = length(var.allowed_principal_arns) > 0 ? 1 : 0

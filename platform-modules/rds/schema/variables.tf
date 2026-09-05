@@ -1,9 +1,9 @@
-# ------------------------------------------------------------------
+
 # This submodule connects DIRECTLY to a running PostgreSQL database
-# and executes real SQL - a fundamentally different operation from
+# and executes real SQL, a fundamentally different operation from
 # the parent rds module, which only talks to AWS's API. See this
 # module's README for what that requires operationally.
-# ------------------------------------------------------------------
+
 
 variable "schemas" {
   type = list(object({

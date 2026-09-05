@@ -1,6 +1,4 @@
-# ------------------------------------------------------------------
-# Same identity convention as every other COB primitive.
-# ------------------------------------------------------------------
+
 variable "team" {
   type        = string
   description = "Team that owns this compute resource."
@@ -16,8 +14,8 @@ variable "environment" {
   description = "Deployment environment."
 
   validation {
-    condition     = contains(["dev", "staging", "prod"], var.environment)
-    error_message = "environment must be one of: dev, staging, prod."
+    condition     = contains(["dev", "prod"], var.environment)
+    error_message = "environment must be one of: dev, prod."
   }
 }
 
@@ -31,12 +29,8 @@ variable "purpose" {
   }
 }
 
-# ------------------------------------------------------------------
-# Required, not defaulted. This module refuses to create its own VPC
-# or subnets - it consumes networking's outputs directly. Passing
-# nothing here should fail loudly, not silently fall back to a
-# default VPC.
-# ------------------------------------------------------------------
+# This module consumes networking's outputs directly. Passing
+# nothing here should fail.
 variable "vpc_id" {
   type        = string
   description = "VPC ID from the networking module's vpc_id output."
@@ -52,11 +46,7 @@ variable "subnet_ids" {
   }
 }
 
-# ------------------------------------------------------------------
-# Required. This module refuses to create its own IAM role either -
-# identity comes from iam-role's instance_profile_name output. Same
-# ownership discipline as the VPC/subnet inputs above.
-# ------------------------------------------------------------------
+# identity comes from iam-role's instance_profile_name output. 
 variable "instance_profile_name" {
   type        = string
   description = "Instance profile name from the iam-role module's instance_profile_name output."
@@ -91,11 +81,8 @@ variable "desired_capacity" {
   description = "Desired number of instances in the Auto Scaling Group."
 }
 
-# ------------------------------------------------------------------
-# Structural type - each rule is a distinct ingress path. Validation
-# below blocks the one ingress pattern that's almost always a
-# mistake: SSH open to the entire internet.
-# ------------------------------------------------------------------
+
+#Makes SSH open to only port 22
 variable "ingress_rules" {
   type = list(object({
     description              = string
