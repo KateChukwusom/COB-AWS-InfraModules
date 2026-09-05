@@ -3,9 +3,9 @@ output "vpc_id" {
 }
 
 output "uploads_bucket" {
-  value = module.storage.bucket_id
+  value = module.uploads_bucket.bucket_id
 }
 
-output "ec2_instance_id" {
-  value = module.compute_ec2.instance_id
+output "web_app_asg_name" {
+  value = module.web_app_server.autoscaling_group_name
 }
