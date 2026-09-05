@@ -89,7 +89,7 @@ design reasoning.
 
 ## Architecture
 
-![COB module composition diagram](./docs/images/COB-INFRA-Architecture.png)
+![COB module composition diagram](./docs/images/COB-INFRA.png)
 
 ## How to Consume COB
 
@@ -142,3 +142,7 @@ COB bakes the following into its modules by default:
 
 Maintained by the Platform Engineering team at Beejan Technologies.
 Contact Platform Engineering directly.
+
+## Detailed Architectural Diagram
+
+![COB module composition diagram](./docs/images/COB_INFRA.png)
