@@ -30,7 +30,7 @@ locals {
   private_subnet_cidrs = [for i in range(var.az_count) : cidrsubnet(local.base_cidr, 4, i + 100)]
 }
 
-resource "aws_vpc" "this" {
+resource "aws_vpc" "cob_vpc" {
   cidr_block           = local.base_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
@@ -39,7 +39,7 @@ resource "aws_vpc" "this" {
 }
 
 /* */
-resource "aws_internet_gateway" "this" {
+resource "aws_internet_gateway" "cob_igw" {
   vpc_id = aws_vpc.this.id
 
   tags = merge(local.tags, { Name = "${local.vpc_name}-igw" })
@@ -53,7 +53,7 @@ resource "aws_internet_gateway" "this" {
 resource "aws_subnet" "public" {
   for_each = { for idx, az in local.azs : az => idx }
 
-  vpc_id                  = aws_vpc.this.id
+  vpc_id                  = aws_vpc.cob_vpc.id
   availability_zone       = each.key
   cidr_block              = local.public_subnet_cidrs[each.value]
   map_public_ip_on_launch = true
@@ -68,7 +68,7 @@ resource "aws_subnet" "public" {
 resource "aws_subnet" "private" {
   for_each = { for idx, az in local.azs : az => idx }
 
-  vpc_id            = aws_vpc.this.id
+  vpc_id            = aws_vpc.cob_vpc.id
   availability_zone = each.key
   cidr_block        = local.private_subnet_cidrs[each.value]
 
@@ -89,11 +89,11 @@ resource "aws_eip" "nat" {
 }
 
 /* */
-resource "aws_nat_gateway" "this" {
+resource "aws_nat_gateway" "cob_ngw" {
   count = var.enable_nat_gateway ? 1 : 0
 
   allocation_id = aws_eip.nat[0].id
-  
+
   # A single NAT gateway in the first public subnet is sufficient for
   # most workloads and keeps cost down. One NAT per AZ is a valid
   # upgrade later if private-subnet resilience against an AZ outage
@@ -102,16 +102,16 @@ resource "aws_nat_gateway" "this" {
 
   tags = merge(local.tags, { Name = "${local.vpc_name}-nat" })
 
-  depends_on = [aws_internet_gateway.this]
+  depends_on = [aws_internet_gateway.cob_igw]
 }
 
 /* */
 resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.this.id
+  vpc_id = aws_vpc.cob_vpc.id
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.this.id
+    gateway_id = aws_internet_gateway.cob_igw.id
   }
 
   tags = merge(local.tags, { Name = "${local.vpc_name}-public-rt" })
@@ -119,7 +119,7 @@ resource "aws_route_table" "public" {
 
 /* */
 resource "aws_route_table" "private" {
-  vpc_id = aws_vpc.this.id
+  vpc_id = aws_vpc.cob_vpc.id
 
   # dynamic block: only generate a default route if NAT is actually
   # enabled. Without this guard, the route table would either fail
@@ -130,7 +130,7 @@ resource "aws_route_table" "private" {
     for_each = var.enable_nat_gateway ? [1] : []
     content {
       cidr_block     = "0.0.0.0/0"
-      nat_gateway_id = aws_nat_gateway.this[0].id
+      nat_gateway_id = aws_nat_gateway.cob_ngw.id
     }
   }
 
