@@ -21,13 +21,11 @@ locals {
 
   azs = slice(data.aws_availability_zones.available.names, 0, var.az_count)
 
-  # Carves the /16 into /20s. Public subnets take netnum 0..N,
-  # private subnets take netnum 100..100+N — the offset keeps the
-  # two ranges visually and numerically separated so a human
-  # scanning raw CIDRs can tell public from private at a glance.
-  /* */
+  
+  /*the slicing logic then decides how the address gets divided up and labeled, consistently,
+   every time, without ever asking the caller to think about addresses at all */
   public_subnet_cidrs  = [for i in range(var.az_count) : cidrsubnet(local.base_cidr, 4, i)]
-  private_subnet_cidrs = [for i in range(var.az_count) : cidrsubnet(local.base_cidr, 4, i + 100)]
+  private_subnet_cidrs = [for i in range(var.az_count) : cidrsubnet(local.base_cidr, 4, i + var.az_count)]
 }
 
 resource "aws_vpc" "cob_vpc" {
@@ -46,10 +44,9 @@ resource "aws_internet_gateway" "cob_igw" {
 }
 
 
-# for_each keyed by AZ name, if az_count ever changes, or AZ
-# ordering shifts, each subnet stays tied to its actual AZ identity
-# instead of a positional index that could get reassigned.
-/* */
+/* each.key = the AZ name  used to place the subnet in the right AZ.
+ each.value =  used below to pick the matching CIDR block, so this subnet gets the CIDR that was
+  calculated specifically for it, not a random one. */
 resource "aws_subnet" "public" {
   for_each = { for idx, az in local.azs : az => idx }
 
@@ -78,9 +75,8 @@ resource "aws_subnet" "private" {
   })
 }
 
-# count, not for_each, is correct here: this is an on/off switch
-# (0 or 1), not a loop over a collection of distinct items.
-/* */
+
+/*This creates an elastic Ip only if the consumer asks for a NAT */
 resource "aws_eip" "nat" {
   count  = var.enable_nat_gateway ? 1 : 0
   domain = "vpc"
@@ -94,10 +90,7 @@ resource "aws_nat_gateway" "cob_ngw" {
 
   allocation_id = aws_eip.nat[0].id
 
-  # A single NAT gateway in the first public subnet is sufficient for
-  # most workloads and keeps cost down. One NAT per AZ is a valid
-  # upgrade later if private-subnet resilience against an AZ outage
-  # becomes a real requirement — deliberately not built in yet.
+#One nat gatway per AZ is a limitation to be worked on
   subnet_id = values(aws_subnet.public)[0].id
 
   tags = merge(local.tags, { Name = "${local.vpc_name}-nat" })
@@ -121,11 +114,9 @@ resource "aws_route_table" "public" {
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.cob_vpc.id
 
-  # dynamic block: only generate a default route if NAT is actually
-  # enabled. Without this guard, the route table would either fail
-  # to create (no NAT gateway ID to reference) or need an awkward
-  # placeholder value when NAT is off.
-  /* */
+
+  /* dynamic block: only generate a default route if NAT is actually
+  enabled.*/
   dynamic "route" {
     for_each = var.enable_nat_gateway ? [1] : []
     content {

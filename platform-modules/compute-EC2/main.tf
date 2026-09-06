@@ -9,12 +9,8 @@ locals {
 }
 
 
-# AMI is resolved internally via AWS's own published SSM parameter,
-# not passed in by the caller. This guarantees every instance this
-# module creates boots from a current, AWS-maintained Amazon Linux
-# image - no stale hardcoded AMI ID drifting out of date across
-# regions, and no caller needing to know how to find one.
-
+# This points to the AMI during instance launch, This guarantees every instance this
+# module creates boots from a current Amazon Linux image 
 data "aws_ssm_parameter" "al2023_ami" {
   name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
   
@@ -87,13 +83,5 @@ resource "aws_autoscaling_group" "COB-asg" {
     version = "$Latest"
   }
 
-  # ASG requires tags in a different shape than a plain map 
-  dynamic "tag" {
-    for_each = merge(local.tags, { Name = local.name })
-    content {
-      key                 = tag.key
-      value               = tag.value
-      propagate_at_launch = true
-    }
-  }
+  
 }

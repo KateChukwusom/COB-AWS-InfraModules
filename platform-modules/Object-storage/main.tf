@@ -25,25 +25,21 @@ resource "aws_s3_bucket" "COB_s3_bucket" {
 }
 
 # Versioning protects against overwrite and
-# delete mistakes - this module doesn't offer a way to turn that
-# protection off. Pairs unconditionally with the lifecycle baseline
-# below, which is what keeps versioning's storage cost bounded.
+# delete mistakes and Pairs unconditionally with the lifecycle baseline
+# below, being cost conscious
 
-resource "aws_s3_bucket_versioning" "this" {
-  bucket = aws_s3_bucket.this.id
+resource "aws_s3_bucket_versioning" "cob_s3_versioning" {
+  bucket = aws_s3_bucket.COB_s3_bucket.id
 
   versioning_configuration {
     status = "Enabled"
   }
 }
 
-# Encryption is NEVER optional, only which key is used varies.
-# No kms_key_arn -> AWS-managed SSE-S3. A kms_key_arn -> SSE-KMS
-# with the caller's own key. There is no code path that produces
-# an unencrypted bucket.
+# Encryption is NEVER optional
 /* */
-resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
-  bucket = aws_s3_bucket.this.id
+resource "aws_s3_bucket_server_side_encryption_configuration" "cob_encrption" {
+  bucket = aws_s3_bucket.COB_s3_bucket.id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -156,8 +152,8 @@ locals {
 
 # Encryption itself is never optional, this resource always exists,
 # on every bucket.
-resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
-  bucket = aws_s3_bucket.this.id
+resource "aws_s3_bucket_server_side_encryption_configuration" "encrption_config" {
+  bucket = aws_s3_bucket.COB_s3_bucket.id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -178,8 +174,8 @@ data "aws_iam_policy_document" "bucket_policy" {
     actions = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
 
     resources = [
-      aws_s3_bucket.this.arn,
-      "${aws_s3_bucket.this.arn}/*"
+      aws_s3_bucket.COB_s3_bucket.arn,
+      "${aws_s3_bucket.COB_s3_bucket.arn}/*"
     ]
 
     principals {
@@ -190,8 +186,8 @@ data "aws_iam_policy_document" "bucket_policy" {
 }
 
 /* */
-resource "aws_s3_bucket_policy" "this" {
+resource "aws_s3_bucket_policy" "bucket_policy" {
   count  = length(var.allowed_principal_arns) > 0 ? 1 : 0
-  bucket = aws_s3_bucket.this.id
+  bucket = aws_s3_bucket.COB_s3_bucket.id
   policy = data.aws_iam_policy_document.bucket_policy[0].json
 }

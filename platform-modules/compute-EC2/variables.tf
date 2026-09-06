@@ -38,7 +38,7 @@ variable "vpc_id" {
 
 variable "subnet_ids" {
   type        = list(string)
-  description = "Subnet IDs from the networking module - typically private_subnet_ids."
+  description = "Subnet IDs from the networking module ."
 
   validation {
     condition     = length(var.subnet_ids) > 0
@@ -82,7 +82,7 @@ variable "desired_capacity" {
 }
 
 
-#Makes SSH open to only port 22
+# Blocks SSH (port 22) from being opened to the entire internet.
 variable "ingress_rules" {
   type = list(object({
     description              = string
@@ -93,7 +93,7 @@ variable "ingress_rules" {
   }))
   default     = []
   description = "Ingress rules for this compute resource's security group."
-
+#Blocks ssh from being open to the entire internet
   validation {
     condition = alltrue([
       for rule in var.ingress_rules :
