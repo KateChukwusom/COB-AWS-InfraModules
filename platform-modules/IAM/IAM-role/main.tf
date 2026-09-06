@@ -1,10 +1,5 @@
 
-terraform {
-  required_version = ">= 1.5.0"
-  required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.0" }
-  }
-}
+
 
 /*The essence of locals is to enforce COB's naming convention
 The convention is baked in by the interpolation of team name and environment 
