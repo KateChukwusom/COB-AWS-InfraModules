@@ -16,9 +16,7 @@ data "aws_ssm_parameter" "al2023_ami" {
   
 }
 
-
-
-# Security group that determines who can access
+#Security group that determines who can access
 
 resource "aws_security_group" "COB-sg" {
   name        = "${local.name}-sg"
